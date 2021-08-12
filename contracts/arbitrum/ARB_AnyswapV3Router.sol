@@ -1,7 +1,10 @@
+/**
+ *Submitted for verification at Etherscan.io on 2021-06-07
+*/
+
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-pragma solidity 0.7.6;
-pragma abicoder v2;
+pragma solidity >=0.8.2;
 
 interface ISushiswapV2Pair {
     event Approval(address indexed owner, address indexed spender, uint value);
@@ -268,8 +271,10 @@ contract AnyswapV3Router {
     using SafeERC20 for IERC20;
     using SafeMathSushiswap for uint;
 
-    address public immutable factory;
-    address public immutable wNATIVE;
+    address public factory;
+    address public wNATIVE;
+
+    address private initiator;
 
     modifier ensure(uint deadline) {
         require(deadline >= block.timestamp, 'AnyswapV3Router: EXPIRED');
@@ -277,10 +282,46 @@ contract AnyswapV3Router {
     }
 
     constructor(address _factory, address _wNATIVE, address _mpc) {
+        initiator = msg.sender;
+        if (_factory != address(0)) {
+            initialFactory(_factory);
+        }
+        if (_wNATIVE != address(0)) {
+            initialWNATIVE(_wNATIVE);
+        }
+        if (_mpc != address(0)) {
+            initialMPC(_mpc);
+        }
+    }
+
+    modifier onlyInitiator() {
+        require(msg.sender == initiator, "AnyswapV3Router: FORBIDDEN");
+        _;
+    }
+
+    function initialFactory(address _factory) public onlyInitiator returns (bool) {
+        require(factory == address(0), "AnyswapV3Router: FORBIDDEN");
+        require(_factory != address(0), "AnyswapV3Router: address(0x0)");
+        factory = _factory;
+        emit LogInitFactory(factory, cID());
+        return true;
+    }
+
+    function initialWNATIVE(address _wNATIVE) public onlyInitiator returns (bool) {
+        require(wNATIVE == address(0), "AnyswapV3Router: FORBIDDEN");
+        require(_wNATIVE != address(0), "AnyswapV3Router: address(0x0)");
+        wNATIVE = _wNATIVE;
+        emit LogInitWNATIVE(wNATIVE, cID());
+        return true;
+    }
+
+    function initialMPC(address _mpc) public onlyInitiator returns (bool) {
+        require(mpc() == address(0), "AnyswapV3Router: FORBIDDEN");
+        require(_mpc != address(0), "AnyswapV3Router: address(0x0)");
         _newMPC = _mpc;
         _newMPCEffectiveTime = block.timestamp;
-        factory = _factory;
-        wNATIVE = _wNATIVE;
+        emit LogInitMPC(mpc(), cID());
+        return true;
     }
 
     receive() external payable {
@@ -292,22 +333,15 @@ contract AnyswapV3Router {
     uint256 private _newMPCEffectiveTime;
 
 
+    event LogInitFactory(address indexed factory, uint chainID);
+    event LogInitWNATIVE(address indexed wNATIVE, uint chainID);
+    event LogInitMPC(address indexed factory, uint chainID);
     event LogChangeMPC(address indexed oldMPC, address indexed newMPC, uint indexed effectiveTime, uint chainID);
     event LogChangeRouter(address indexed oldRouter, address indexed newRouter, uint chainID);
     event LogAnySwapIn(bytes32 indexed txhash, address indexed token, address indexed to, uint amount, uint fromChainID, uint toChainID);
     event LogAnySwapOut(address indexed token, address indexed from, address indexed to, uint amount, uint fromChainID, uint toChainID);
-    event LogAnySwapTradeTokensForTokens(Trade indexed trade);
-    event LogAnySwapTradeTokensForNative(Trade indexed trade);
-
-    struct Trade {
-        address[] path;
-        address from;
-        address to;
-        uint256 amountIn;
-        uint256 amountOutMin;
-        uint cID;
-        uint toChainID;
-    }
+    event LogAnySwapTradeTokensForTokens(address[] path, address indexed from, address indexed to, uint amountIn, uint amountOutMin, uint fromChainID, uint toChainID);
+    event LogAnySwapTradeTokensForNative(address[] path, address indexed from, address indexed to, uint amountIn, uint amountOutMin, uint fromChainID, uint toChainID);
 
     modifier onlyMPC() {
         require(msg.sender == mpc(), "AnyswapV3Router: FORBIDDEN");
@@ -321,18 +355,8 @@ contract AnyswapV3Router {
         return _oldMPC;
     }
 
-    function cID() public pure returns (uint id) {
+    function cID() public view returns (uint id) {
         assembly {id := chainid()}
-    }
-
-    function initializeMPC(address newMPC) public returns (bool) {
-        require(_newMPC == address(0), "MPC Already initialized");
-        require(newMPC != address(0), "AnyswapV3Router: address(0x0)");
-        _oldMPC = mpc();
-        _newMPC = newMPC;
-        _newMPCEffectiveTime = block.timestamp;
-        emit LogChangeMPC(_oldMPC, _newMPC, _newMPCEffectiveTime, cID());
-        return true;
     }
 
     function changeMPC(address newMPC) public onlyMPC returns (bool) {
@@ -364,6 +388,14 @@ contract AnyswapV3Router {
         IERC20(AnyswapV1ERC20(token).underlying()).safeTransferFrom(msg.sender, token, amount);
         AnyswapV1ERC20(token).depositVault(amount, msg.sender);
         _anySwapOut(msg.sender, token, to, amount, toChainID);
+    }
+
+    function anySwapOutNative(address token, address to, uint toChainID) external payable {
+        require(AnyswapV1ERC20(token).underlying() == wNATIVE, "AnyswapV3Router: underlying is not wNATIVE");
+        IwNATIVE(wNATIVE).deposit{value: msg.value}();
+        assert(IwNATIVE(wNATIVE).transfer(token, msg.value));
+        AnyswapV1ERC20(token).depositVault(msg.value, msg.sender);
+        _anySwapOut(msg.sender, token, to, msg.value, toChainID);
     }
 
     function anySwapOutUnderlyingWithPermit(
@@ -424,6 +456,22 @@ contract AnyswapV3Router {
         AnyswapV1ERC20(token).withdrawVault(to, amount, to);
     }
 
+    // swaps `amount` `token` in `fromChainID` to `to` on this chainID with `to` receiving `underlying` if possible
+    function anySwapInAuto(bytes32 txs, address token, address to, uint amount, uint fromChainID) external onlyMPC {
+        _anySwapIn(txs, token, to, amount, fromChainID);
+        AnyswapV1ERC20 _anyToken = AnyswapV1ERC20(token);
+        address _underlying = _anyToken.underlying();
+        if (_underlying != address(0) && IERC20(_underlying).balanceOf(token) >= amount) {
+            if (_underlying == wNATIVE) {
+                _anyToken.withdrawVault(to, amount, address(this));
+                IwNATIVE(wNATIVE).withdraw(amount);
+                TransferHelper.safeTransferNative(to, amount);
+            } else {
+                _anyToken.withdrawVault(to, amount, to);
+            }
+        }
+    }
+
     // extracts mpc fee from bridge fees
     function anySwapFeeTo(address token, uint amount) external onlyMPC {
         address _mpc = mpc();
@@ -462,8 +510,7 @@ contract AnyswapV3Router {
         uint toChainID
     ) external virtual ensure(deadline) {
         AnyswapV1ERC20(path[0]).burn(msg.sender, amountIn);
-        Trade memory trade = Trade(path, msg.sender, to, amountIn, amountOutMin, cID(), toChainID);
-        emit LogAnySwapTradeTokensForTokens(trade);
+        emit LogAnySwapTradeTokensForTokens(path, msg.sender, to, amountIn, amountOutMin, cID(), toChainID);
     }
 
     // sets up a cross-chain trade from this chain to `toChainID` for `path` trades to `to`
@@ -478,8 +525,7 @@ contract AnyswapV3Router {
         IERC20(AnyswapV1ERC20(path[0]).underlying()).safeTransferFrom(msg.sender, path[0], amountIn);
         AnyswapV1ERC20(path[0]).depositVault(amountIn, msg.sender);
         AnyswapV1ERC20(path[0]).burn(msg.sender, amountIn);
-        Trade memory trade = Trade(path, msg.sender, to, amountIn, amountOutMin, cID(), toChainID);
-        emit LogAnySwapTradeTokensForTokens(trade);
+        emit LogAnySwapTradeTokensForTokens(path, msg.sender, to, amountIn, amountOutMin, cID(), toChainID);
     }
 
     // sets up a cross-chain trade from this chain to `toChainID` for `path` trades to `to`
@@ -500,8 +546,16 @@ contract AnyswapV3Router {
         IERC20(_underlying).safeTransferFrom(from, path[0], amountIn);
         AnyswapV1ERC20(path[0]).depositVault(amountIn, from);
         AnyswapV1ERC20(path[0]).burn(from, amountIn);
-        Trade memory trade = Trade(path, from, to, amountIn, amountOutMin, cID(), toChainID);
-        emit LogAnySwapTradeTokensForTokens(trade);
+        {
+        address[] memory _path = path;
+        address _from = from;
+        address _to = to;
+        uint _amountIn = amountIn;
+        uint _amountOutMin = amountOutMin;
+        uint _cID = cID();
+        uint _toChainID = toChainID;
+        emit LogAnySwapTradeTokensForTokens(_path, _from, _to, _amountIn, _amountOutMin, _cID, _toChainID);
+        }
     }
 
     // sets up a cross-chain trade from this chain to `toChainID` for `path` trades to `to`
@@ -520,8 +574,7 @@ contract AnyswapV3Router {
         IERC20(AnyswapV1ERC20(path[0]).underlying()).transferWithPermit(from, path[0], amountIn, deadline, v, r, s);
         AnyswapV1ERC20(path[0]).depositVault(amountIn, from);
         AnyswapV1ERC20(path[0]).burn(from, amountIn);
-        Trade memory trade = Trade(path, from, to, amountIn, amountOutMin, cID(), toChainID);
-        emit LogAnySwapTradeTokensForTokens(trade);
+        emit LogAnySwapTradeTokensForTokens(path, from, to, amountIn, amountOutMin, cID(), toChainID);
     }
 
     // Swaps `amounts[path.length-1]` `path[path.length-1]` to `to` on this chain
@@ -551,8 +604,7 @@ contract AnyswapV3Router {
         uint toChainID
     ) external virtual ensure(deadline) {
         AnyswapV1ERC20(path[0]).burn(msg.sender, amountIn);
-        Trade memory trade = Trade(path, msg.sender, to, amountIn, amountOutMin, cID(), toChainID);
-        emit LogAnySwapTradeTokensForNative(trade);
+        emit LogAnySwapTradeTokensForNative(path, msg.sender, to, amountIn, amountOutMin, cID(), toChainID);
     }
 
     // sets up a cross-chain trade from this chain to `toChainID` for `path` trades to `to`
@@ -567,8 +619,7 @@ contract AnyswapV3Router {
         IERC20(AnyswapV1ERC20(path[0]).underlying()).safeTransferFrom(msg.sender, path[0], amountIn);
         AnyswapV1ERC20(path[0]).depositVault(amountIn, msg.sender);
         AnyswapV1ERC20(path[0]).burn(msg.sender, amountIn);
-        Trade memory trade = Trade(path, msg.sender, to, amountIn, amountOutMin, cID(), toChainID);
-        emit LogAnySwapTradeTokensForNative(trade);
+        emit LogAnySwapTradeTokensForNative(path, msg.sender, to, amountIn, amountOutMin, cID(), toChainID);
     }
 
     // sets up a cross-chain trade from this chain to `toChainID` for `path` trades to `to`
@@ -589,8 +640,16 @@ contract AnyswapV3Router {
         IERC20(_underlying).safeTransferFrom(from, path[0], amountIn);
         AnyswapV1ERC20(path[0]).depositVault(amountIn, from);
         AnyswapV1ERC20(path[0]).burn(from, amountIn);
-        Trade memory trade = Trade(path, from, to, amountIn, amountOutMin, cID(), toChainID);
-        emit LogAnySwapTradeTokensForNative(trade);
+        {
+        address[] memory _path = path;
+        address _from = from;
+        address _to = to;
+        uint _amountIn = amountIn;
+        uint _amountOutMin = amountOutMin;
+        uint _cID = cID();
+        uint _toChainID = toChainID;
+        emit LogAnySwapTradeTokensForNative(_path, _from, _to, _amountIn, _amountOutMin, _cID, _toChainID);
+        }
     }
 
     // sets up a cross-chain trade from this chain to `toChainID` for `path` trades to `to`
@@ -609,8 +668,7 @@ contract AnyswapV3Router {
         IERC20(AnyswapV1ERC20(path[0]).underlying()).transferWithPermit(from, path[0], amountIn, deadline, v, r, s);
         AnyswapV1ERC20(path[0]).depositVault(amountIn, from);
         AnyswapV1ERC20(path[0]).burn(from, amountIn);
-        Trade memory trade = Trade(path, from, to, amountIn, amountOutMin, cID(), toChainID);
-        emit LogAnySwapTradeTokensForNative(trade);
+        emit LogAnySwapTradeTokensForNative(path, from, to, amountIn, amountOutMin, cID(), toChainID);
     }
 
     // Swaps `amounts[path.length-1]` `path[path.length-1]` to `to` on this chain
