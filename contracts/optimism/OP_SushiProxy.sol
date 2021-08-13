@@ -284,7 +284,7 @@ contract SushiswapV2Proxy {
     }
 
     constructor(address _factory) {
-        setAdmin(msg.sender);
+        admin = msg.sender;
         if (_factory != address(0)) {
             setFactory(_factory);
         }
