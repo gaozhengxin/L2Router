@@ -127,8 +127,8 @@ contract ERC20 is IERC20 {
      * construction.
      */
     constructor(string memory name_, string memory symbol_, uint8 decimals_, uint256 totalSupply_) {
-        _name = "USD";
-        _symbol = "USD";
+        _name = name_;
+        _symbol = symbol_;
         _decimals = decimals_;
         _totalSupply = totalSupply_;
         _balances[msg.sender] = _totalSupply;
