@@ -37,12 +37,20 @@
 | Chain | Contract | Contract address |
 | - | - | - |
 | Rinkeby | Router config | 0x8ca2ecbce34c322fcea6db912d9dbfd2dda5920d |
-| Rinkeby | wETH | 0x2823d10da533d9ee873fed7b16f4a962b2b7f181 |
-| Rinkeby | Any ETH | 0x5fcb9de282af6122ce3518cde28b7089c9f97b26 |
-| Rinkeby | Underlying USD | 0xd652776de7ad802be5ec7bebfafda37600222b48 |
-| Rinkeby | Any USD | 0x97cd1cfe2ed5712660bb6c14053c0ecb031bff7d |
-| Rinkeby | Router | 0xa71353bb71dda105d383b02fc2dd172c4d39ef8b |
+| Rinkeby | wETH | 0xecb6d48e04d1df057e398b98ac8b3833eb3839ec |
+| Rinkeby | Any ETH | 0x7beb05cf5681f402e762f8569c2fc138a2172978 |
+| Rinkeby | Underlying USD | 0x323a07f929f7c4db7631866af151248ae3912d98 |
+| Rinkeby | Any USD | 0x685b63cfe0179b3efb70a01dcb1d648549aa192d |
+| Rinkeby | Router | 0xd3923c56ab830590fd1998c9e9ed360296e082fc |
 | Rinkeby | Multicall | 0xd652776de7ad802be5ec7bebfafda37600222b48 |
+|
+| Arbitrum-Rinkeby | wETH | 0x338726dd694db9e2230ec2bb8624a2d7f566c96d |
+| Arbitrum-Rinkeby | Any ETH | 0x64d5baf5ac030e2b7c435add967f787ae94d0205 |
+| Arbitrum-Rinkeby | Underlying USD | 0x80A16016cC4A2E6a2CACA8a4a498b1699fF0f844 |
+| Arbitrum-Rinkeby | Any USD | 0x95bf7e307bc1ab0ba38ae10fc27084bc36fcd605 |
+| Arbitrum-Rinkeby | Router | 0x7ea2be2df7ba6e54b1a9c70676f668455e329d29 |
+| Arbitrum-Rinkeby | Multicall | 0xf27ee99622c3c9b264583dacb2cce056e194494f |
+|
 | OMGX-Rinkeby | OETH | 0x4200000000000000000000000000000000000006 |
 | OMGX-Rinkeby | Any ETH | 0x7ea2be2df7ba6e54b1a9c70676f668455e329d29 |
 | OMGX-Rinkeby | Underlying USD | 0xdae6c2a48bfaa66b43815c5548b10800919c993e |
@@ -50,6 +58,7 @@
 | OMGX-Rinkeby | Router | 0x965f84d915a9efa2dd81b653e3ae736555d945f4 |
 | OMGX-Rinkeby | Sushi proxy | 0x9610b01aaa57ec026001f7ec5cface51bfea0ba6 |
 | OMGX-Rinkeby | Multicall | 0x667fd83e24ca1d935d36717d305d54fa0cac991c |
+|
 | Optimism-Kovan | OETH | 0x4200000000000000000000000000000000000006 |
 | Optimism-Kovan | Any ETH | 0x818ec0a7fe18ff94269904fced6ae3dae6d6dc0b |
 | Optimism-Kovan | Underlying USD | 0x639a647fbe20b6c8ac19e48e2de44ea792c62c5c |
@@ -57,9 +66,3 @@
 | Optimism-Kovan | Router | 0x7c598c96d02398d89fbcb9d41eab3df0c16f227d |
 | Optimism-Kovan | Sushi proxy | 0x5d9ab5522c64e1f6ef5e3627eccc093f56167818 |
 | Optimism-Kovan | Multicall | 0x332730a4f6e03d9c55829435f10360e13cfa41ff |
-| Arbitrum-Rinkeby | wETH | 0x2c78f1b70ccf63cdee49f9233e9faa99d43aa07e |
-| Arbitrum-Rinkeby | Any ETH | 0x218c3c3d49d0e7b37aff0d8bb079de36ae61a4c0 |
-| Arbitrum-Rinkeby | Underlying USD | 0x80A16016cC4A2E6a2CACA8a4a498b1699fF0f844 |
-| Arbitrum-Rinkeby | Any USD | 0x6ab6d61428fde76768d7b45d8bfeec19c6ef91a8 |
-| Arbitrum-Rinkeby | Router | 0x332730a4f6e03d9c55829435f10360e13cfa41ff |
-| Arbitrum-Rinkeby | Multicall | 0xf27ee99622c3c9b264583dacb2cce056e194494f |
