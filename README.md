@@ -21,6 +21,7 @@
 - RPC - https://kovan.optimism.io
 - Websocket - https://kovan.optimism.io:8546
 - 浏览器 - https://kovan-l2-explorer.surge.sh
+- 浏览器 - https://kovan-optimistic.etherscan.io/
 - L1 => L2 跨链桥 - https://gateway.optimism.io/
 - 确认数 - 1
 - 初始块高 - 1069187
@@ -44,10 +45,10 @@
 | Rinkeby | Router | 0xd3923c56ab830590fd1998c9e9ed360296e082fc |
 | Rinkeby | Multicall | 0xd652776de7ad802be5ec7bebfafda37600222b48 |
 | Arbitrum-Rinkeby | wETH | 0x338726dd694db9e2230ec2bb8624a2d7f566c96d |
-| Arbitrum-Rinkeby | Any ETH | 0x64d5baf5ac030e2b7c435add967f787ae94d0205 |
+| Arbitrum-Rinkeby | Any ETH | 0x595c8481c48894771ce8fade54ac6bf59093f9e8 |
 | Arbitrum-Rinkeby | Underlying USD | 0x80A16016cC4A2E6a2CACA8a4a498b1699fF0f844 |
-| Arbitrum-Rinkeby | Any USD | 0x95bf7e307bc1ab0ba38ae10fc27084bc36fcd605 |
-| Arbitrum-Rinkeby | Router | 0x7ea2be2df7ba6e54b1a9c70676f668455e329d29 |
+| Arbitrum-Rinkeby | Any USD | 0xb153fb3d196a8eb25522705560ac152eeec57901 |
+| Arbitrum-Rinkeby | Router | 0xcb58418aa51ba525aef0fe474109c0354d844b7c |
 | Arbitrum-Rinkeby | Multicall | 0xf27ee99622c3c9b264583dacb2cce056e194494f |
 | OMGX-Rinkeby | OETH | 0x4200000000000000000000000000000000000006 |
 | OMGX-Rinkeby | Any ETH | 0x7ea2be2df7ba6e54b1a9c70676f668455e329d29 |
