@@ -8,9 +8,9 @@
 - 确认数 - 3
 - 初始块高 - 9106500
 
-#### OMGX-Rinkeby 测试网
+#### BOBA-Rinkeby 测试网 (OMGX)
 - Chain ID - 28
-- RPC - https://rinkeby.omgx.network
+- RPC - https://rinkeby.boba.network
 - 浏览器 - https://blockexplorer.rinkeby.omgx.network/?network=OmgX
 - L1 => L2 跨链桥 - https://webwallet.rinkeby.omgx.network/
 - 确认数 - 1
@@ -19,7 +19,7 @@
 #### Optimism-Kovan 测试网
 - Chain ID - 69
 - RPC - https://kovan.optimism.io
-- Websocket - https://kovan.optimism.io:8546
+- Websocket - wss://kovan.optimism.io:8546
 - 浏览器 - https://kovan-l2-explorer.surge.sh
 - 浏览器 - https://kovan-optimistic.etherscan.io/
 - L1 => L2 跨链桥 - https://gateway.optimism.io/
