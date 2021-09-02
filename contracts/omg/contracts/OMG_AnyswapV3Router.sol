@@ -1,10 +1,8 @@
-/**
- *Submitted for verification at Etherscan.io on 2021-06-07
- */
-
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 pragma solidity 0.7.6;
+
+import "./OMG_TransferHelper.sol";
 
 // a library for performing overflow-safe math, courtesy of DappHub (https://github.com/dapphub/ds-math)
 
@@ -19,55 +17,6 @@ library SafeMathSushiswap {
 
     function mul(uint256 x, uint256 y) internal pure returns (uint256 z) {
         require(y == 0 || (z = x * y) / y == x, "ds-math-mul-overflow");
-    }
-}
-
-// helper methods for interacting with ERC20 tokens and sending NATIVE that do not consistently return true/false
-library TransferHelper {
-    function safeApprove(
-        address token,
-        address to,
-        uint256 value
-    ) internal {
-        // bytes4(keccak256(bytes('approve(address,uint256)')));
-        (bool success, bytes memory data) = token.call(
-            abi.encodeWithSelector(0x095ea7b3, to, value)
-        );
-        require(
-            success && (data.length == 0 || abi.decode(data, (bool))),
-            "TransferHelper: APPROVE_FAILED"
-        );
-    }
-
-    function safeTransfer(
-        address token,
-        address to,
-        uint256 value
-    ) internal {
-        // bytes4(keccak256(bytes('transfer(address,uint256)')));
-        (bool success, bytes memory data) = token.call(
-            abi.encodeWithSelector(0xa9059cbb, to, value)
-        );
-        require(
-            success && (data.length == 0 || abi.decode(data, (bool))),
-            "TransferHelper: TRANSFER_FAILED"
-        );
-    }
-
-    function safeTransferFrom(
-        address token,
-        address from,
-        address to,
-        uint256 value
-    ) internal {
-        // bytes4(keccak256(bytes('transferFrom(address,address,uint256)')));
-        (bool success, bytes memory data) = token.call(
-            abi.encodeWithSelector(0x23b872dd, from, to, value)
-        );
-        require(
-            success && (data.length == 0 || abi.decode(data, (bool))),
-            "TransferHelper: TRANSFER_FROM_FAILED"
-        );
     }
 }
 
@@ -371,14 +320,43 @@ interface ISushiswapV2Proxy {
         returns (uint256[] memory amounts);
 }
 
-contract MPCControlled {
-    address public initiator;
+interface IwNATIVE {
+    function deposit() external payable;
 
-    modifier onlyInitiator() {
-        require(msg.sender == initiator, "AnyswapV3Router: FORBIDDEN");
+    function transfer(address to, uint256 value) external returns (bool);
+
+    function withdraw(uint256) external;
+}
+
+contract AdminManagable {
+    bool public underAdmin = false;
+    address public admin;
+
+    modifier onlyAdmin() {
+        require(isAdmin());
         _;
     }
 
+    function isAdmin() internal view returns (bool) {
+        return (underAdmin == true && msg.sender == admin);
+    }
+
+    function allowAdmin(address _admin) internal {
+        admin = _admin;
+        underAdmin = true;
+        emit LogAllowAdmin(admin);
+    }
+
+    function forbidAdmin() external onlyAdmin {
+        underAdmin = false;
+        emit LogForbitAdmin();
+    }
+
+    event LogAllowAdmin(address indexed admin);
+    event LogForbitAdmin();
+}
+
+contract MPCManagable is AdminManagable {
     address private _oldMPC;
     address private _newMPC;
     uint256 private _newMPCEffectiveTime;
@@ -391,7 +369,7 @@ contract MPCControlled {
         uint256 chainID
     );
 
-    function initialMPC(address _mpc) public onlyInitiator returns (bool) {
+    function initialMPC(address _mpc) public onlyAdmin returns (bool) {
         require(mpc() == address(0), "AnyswapV3Router: FORBIDDEN");
         require(_mpc != address(0), "AnyswapV3Router: address(0x0)");
         _newMPC = _mpc;
@@ -401,7 +379,7 @@ contract MPCControlled {
     }
 
     modifier onlyMPC() {
-        require(msg.sender == mpc(), "AnyswapV3Router: FORBIDDEN");
+        require(isAdmin() || msg.sender == mpc(), "AnyswapV3Router: FORBIDDEN");
         _;
     }
 
@@ -410,6 +388,19 @@ contract MPCControlled {
             return _newMPC;
         }
         return _oldMPC;
+    }
+
+    function changeMPCInstantly(address newMPC)
+        public
+        onlyAdmin
+        returns (bool)
+    {
+        require(newMPC != address(0), "AnyswapV3Router: address(0x0)");
+        _oldMPC = mpc();
+        _newMPC = newMPC;
+        _newMPCEffectiveTime = block.timestamp;
+        emit LogChangeMPC(_oldMPC, _newMPC, _newMPCEffectiveTime, cID());
+        return true;
     }
 
     function changeMPC(address newMPC) public onlyMPC returns (bool) {
@@ -428,12 +419,11 @@ contract MPCControlled {
     }
 }
 
-contract AnyswapV3Router is MPCControlled {
+contract AnyswapV3Router is MPCManagable {
     using SafeERC20 for IERC20;
     using SafeMathSushiswap for uint256;
 
-    address public wNATIVE =
-        address(0x4200000000000000000000000000000000000006);
+    address public wNATIVE;
 
     address private sushiProxy;
 
@@ -442,35 +432,50 @@ contract AnyswapV3Router is MPCControlled {
         _;
     }
 
-    constructor(address _mpc, address _sushiproxy) {
-        initiator = msg.sender;
+    receive() external payable {
+        assert(msg.sender == wNATIVE); // only accept Native via fallback from the wNative contract
+    }
+
+    constructor(
+        address _mpc,
+        address _wNATIVE,
+        address _sushiproxy
+    ) {
+        allowAdmin(msg.sender);
         if (_mpc != address(0)) {
             initialMPC(_mpc);
+        }
+        if (_wNATIVE != address(0)) {
+            setWNATIVE(_wNATIVE);
         }
         if (_sushiproxy != address(0)) {
             setSushiProxy(_sushiproxy);
         }
     }
 
-    function setSushiProxy(address _sushiproxy)
-        public
-        onlyInitiator
-        returns (bool)
-    {
-        sushiProxy = _sushiproxy;
-        emit LogSetProxy(sushiProxy, cID());
+    function setWNATIVE(address _wNATIVE) public onlyMPC returns (bool) {
+        address old = wNATIVE;
+        wNATIVE = _wNATIVE;
+        emit LogSetWNATIVE(old, wNATIVE, cID());
         return true;
     }
 
-    receive() external payable {
-        assert(msg.sender == wNATIVE); // only accept Native via fallback from the wNative contract
+    function setSushiProxy(address _sushiproxy) public onlyMPC returns (bool) {
+        sushiProxy = _sushiproxy;
+        emit LogSetSushiProxy(sushiProxy, cID());
+        return true;
     }
 
     address private _oldMPC;
     address private _newMPC;
     uint256 private _newMPCEffectiveTime;
 
-    event LogSetProxy(address indexed factory, uint256 chainID);
+    event LogSetWNATIVE(
+        address indexed oldWNATIVE,
+        address indexed newWNATIVE,
+        uint256 chainID
+    );
+    event LogSetSushiProxy(address indexed factory, uint256 chainID);
     event LogChangeRouter(
         address indexed oldRouter,
         address indexed newRouter,
@@ -696,6 +701,36 @@ contract AnyswapV3Router is MPCControlled {
                 _anyToken.withdrawVault(to, amount, to);
             }
         }
+    }
+
+    function depositNative(address token, address to)
+        external
+        payable
+        returns (uint256)
+    {
+        require(
+            AnyswapV1ERC20(token).underlying() == wNATIVE,
+            "AnyswapV3Router: underlying is not wNATIVE"
+        );
+        IwNATIVE(wNATIVE).deposit{value: msg.value}();
+        assert(IwNATIVE(wNATIVE).transfer(token, msg.value));
+        AnyswapV1ERC20(token).depositVault(msg.value, to);
+        return msg.value;
+    }
+
+    function withdrawNative(
+        address token,
+        uint256 amount,
+        address to
+    ) external returns (uint256) {
+        require(
+            AnyswapV1ERC20(token).underlying() == wNATIVE,
+            "AnyswapV3Router: underlying is not wNATIVE"
+        );
+        AnyswapV1ERC20(token).withdrawVault(msg.sender, amount, address(this));
+        IwNATIVE(wNATIVE).withdraw(amount);
+        TransferHelper.safeTransferNative(to, amount);
+        return amount;
     }
 
     // extracts mpc fee from bridge fees
@@ -1053,7 +1088,10 @@ contract AnyswapV3Router is MPCControlled {
     ) internal virtual {
         for (uint256 i; i < path.length - 1; i++) {
             (address input, address output) = (path[i], path[i + 1]);
-            (address token0, ) = ISushiswapV2Proxy(sushiProxy).sortTokens(input, output);
+            (address token0, ) = ISushiswapV2Proxy(sushiProxy).sortTokens(
+                input,
+                output
+            );
             uint256 amountOut = amounts[i + 1];
             (uint256 amount0Out, uint256 amount1Out) = input == token0
                 ? (uint256(0), amountOut)
@@ -1061,12 +1099,9 @@ contract AnyswapV3Router is MPCControlled {
             address to = i < path.length - 2
                 ? ISushiswapV2Proxy(sushiProxy).pairFor(output, path[i + 2])
                 : _to;
-            ISushiswapV2Pair(ISushiswapV2Proxy(sushiProxy).pairFor(input, output)).swap(
-                amount0Out,
-                amount1Out,
-                to,
-                new bytes(0)
-            );
+            ISushiswapV2Pair(
+                ISushiswapV2Proxy(sushiProxy).pairFor(input, output)
+            ).swap(amount0Out, amount1Out, to, new bytes(0));
         }
     }
 }

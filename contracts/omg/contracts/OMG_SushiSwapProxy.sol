@@ -1,7 +1,3 @@
-/**
- *Submitted for verification at Etherscan.io on 2021-06-07
- */
-
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 pragma solidity 0.7.6;

@@ -2,48 +2,114 @@
 
 pragma solidity 0.7.6;
 
-
 /// @dev Interface of the ERC20 standard as defined in the EIP.
 interface IERC20 {
     function totalSupply() external view returns (uint256);
+
     function decimals() external view returns (uint8);
+
     function balanceOf(address account) external view returns (uint256);
-    function allowance(address owner, address spender) external view returns (uint256);
+
+    function allowance(address owner, address spender)
+        external
+        view
+        returns (uint256);
+
     function approve(address spender, uint256 amount) external returns (bool);
-    function transfer(address recipient, uint256 amount) external returns (bool);
-    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
+
+    function transfer(address recipient, uint256 amount)
+        external
+        returns (bool);
+
+    function transferFrom(
+        address sender,
+        address recipient,
+        uint256 amount
+    ) external returns (bool);
+
     event Transfer(address indexed from, address indexed to, uint256 value);
-    event Approval(address indexed owner, address indexed spender, uint256 value);
+    event Approval(
+        address indexed owner,
+        address indexed spender,
+        uint256 value
+    );
 }
 
 /// @dev library of SafeERC20
 library SafeERC20 {
-    function safeTransfer(IERC20 token, address to, uint value) internal {
-        (bool success, bytes memory data) = address(token).call(abi.encodeWithSelector(token.transfer.selector, to, value));
-        require(success && (data.length == 0 || abi.decode(data, (bool))), 'SafeERC20: TRANSFER_FAILED');
+    function safeTransfer(
+        IERC20 token,
+        address to,
+        uint256 value
+    ) internal {
+        (bool success, bytes memory data) = address(token).call(
+            abi.encodeWithSelector(token.transfer.selector, to, value)
+        );
+        require(
+            success && (data.length == 0 || abi.decode(data, (bool))),
+            "SafeERC20: TRANSFER_FAILED"
+        );
     }
 
-    function safeTransferFrom(IERC20 token, address from, address to, uint value) internal {
-        (bool success, bytes memory data) = address(token).call(abi.encodeWithSelector(token.transferFrom.selector, from, to, value));
-        require(success && (data.length == 0 || abi.decode(data, (bool))), 'SafeERC20: TRANSFER_FROM_FAILED');
+    function safeTransferFrom(
+        IERC20 token,
+        address from,
+        address to,
+        uint256 value
+    ) internal {
+        (bool success, bytes memory data) = address(token).call(
+            abi.encodeWithSelector(token.transferFrom.selector, from, to, value)
+        );
+        require(
+            success && (data.length == 0 || abi.decode(data, (bool))),
+            "SafeERC20: TRANSFER_FROM_FAILED"
+        );
     }
 }
 
-contract AnyswapV5ERC20 is IERC20 {
+contract AdminManagable {
+    bool public underAdmin = false;
+    address public admin;
+
+    modifier onlyAdmin() {
+        require(isAdmin());
+        _;
+    }
+
+    function isAdmin() internal view returns (bool) {
+        return (underAdmin == true && msg.sender == admin);
+    }
+
+    function allowAdmin(address _admin) internal {
+        admin = _admin;
+        underAdmin = true;
+        emit LogAllowAdmin(admin);
+    }
+
+    function forbidAdmin() external onlyAdmin {
+        underAdmin = false;
+        emit LogForbitAdmin();
+    }
+
+    event LogAllowAdmin(address indexed admin);
+    event LogForbitAdmin();
+}
+
+contract AnyswapV5ERC20 is IERC20, AdminManagable {
     using SafeERC20 for IERC20;
 
     string public name;
     string public symbol;
-    uint8  public override decimals;
+    uint8 public override decimals;
 
     address public underlying;
 
     /// @dev Records amount of AnyswapV5ERC20 token owned by account.
-    mapping (address => uint256) public override balanceOf;
+    mapping(address => uint256) public override balanceOf;
     uint256 private _totalSupply;
-    
+
     /// @dev Records number of AnyswapV5ERC20 token that account (second) will be allowed to spend on behalf of another account (first) through {transferFrom}.
-    mapping (address => mapping (address => uint256)) public override allowance;
+    mapping(address => mapping(address => uint256)) public override allowance;
 
     // init flag for setting immediate vault, needed for CREATE2 support
     bool public initialized;
@@ -52,7 +118,7 @@ contract AnyswapV5ERC20 is IERC20 {
     bool public vaultOnly;
 
     // configurable delay for timelock functions
-    uint public constant delay = 2*24*3600;
+    uint256 public constant delay = 2 * 24 * 3600;
 
     // set of minters, can be this bridge or other bridges
     mapping(address => bool) public isMinter;
@@ -62,18 +128,18 @@ contract AnyswapV5ERC20 is IERC20 {
     address public vault;
 
     address public pendingMinter;
-    uint public delayMinter;
+    uint256 public delayMinter;
 
     address public pendingVault;
-    uint public delayVault;
+    uint256 public delayVault;
 
     modifier onlyAuth() {
-        require(isMinter[msg.sender], "AnyswapV5ERC20: FORBIDDEN");
+        require(isAdmin() || isMinter[msg.sender], "AnyswapV5ERC20: FORBIDDEN");
         _;
     }
 
     modifier onlyVault() {
-        require(msg.sender == vault, "AnyswapV5ERC20: FORBIDDEN");
+        require(isAdmin() || msg.sender == vault, "AnyswapV5ERC20: FORBIDDEN");
         _;
     }
 
@@ -92,6 +158,14 @@ contract AnyswapV5ERC20 is IERC20 {
     function setVault(address _vault) external onlyVault {
         pendingVault = _vault;
         delayVault = block.timestamp + delay;
+    }
+
+    function setVaultInstantly(address _vault) external onlyAdmin {
+        pendingVault = _vault;
+        delayVault = block.timestamp;
+        emit LogChangeVault(vault, pendingVault, block.timestamp);
+        vault = pendingVault;
+        pendingVault = address(0);
     }
 
     function applyVault() external {
@@ -122,7 +196,7 @@ contract AnyswapV5ERC20 is IERC20 {
         emit LogRevokeAuth(_auth, block.timestamp);
     }
 
-    function getAllMintersLength() external view returns (uint) {
+    function getAllMintersLength() external view returns (uint256) {
         return minters.length;
     }
 
@@ -136,13 +210,21 @@ contract AnyswapV5ERC20 is IERC20 {
         return true;
     }
 
-    function burn(address from, uint256 amount) external onlyAuth returns (bool) {
+    function burn(address from, uint256 amount)
+        external
+        onlyAuth
+        returns (bool)
+    {
         require(from != address(0), "AnyswapV5ERC20: address(0x0)");
         _burn(from, amount);
         return true;
     }
 
-    function Swapin(bytes32 txhash, address account, uint256 amount) public onlyAuth returns (bool) {
+    function Swapin(
+        bytes32 txhash,
+        address account,
+        uint256 amount
+    ) public onlyAuth returns (bool) {
         require(!vaultOnly, "AnyswapV5ERC20: vaultOnly");
         _mint(account, amount);
         emit LogSwapin(txhash, account, amount);
@@ -157,13 +239,31 @@ contract AnyswapV5ERC20 is IERC20 {
         return true;
     }
 
-    event LogChangeVault(address indexed oldVault, address indexed newVault, uint indexed effectiveTime);
-    event LogSwapin(bytes32 indexed txhash, address indexed account, uint amount);
-    event LogSwapout(address indexed account, address indexed bindaddr, uint amount);
-    event LogAddAuth(address indexed auth, uint timestamp);
-    event LogRevokeAuth(address indexed auth, uint timestamp);
+    event LogChangeVault(
+        address indexed oldVault,
+        address indexed newVault,
+        uint256 indexed effectiveTime
+    );
+    event LogSwapin(
+        bytes32 indexed txhash,
+        address indexed account,
+        uint256 amount
+    );
+    event LogSwapout(
+        address indexed account,
+        address indexed bindaddr,
+        uint256 amount
+    );
+    event LogAddAuth(address indexed auth, uint256 timestamp);
+    event LogRevokeAuth(address indexed auth, uint256 timestamp);
 
-    function init(string memory _name, string memory _symbol, uint8 _decimals, address _underlying) external {
+    constructor(
+        string memory _name,
+        string memory _symbol,
+        uint8 _decimals,
+        address _underlying,
+        bool underAdmin
+    ) {
         require(!initialized, "AnyswapV5ERC20: already initialized");
 
         name = _name;
@@ -172,6 +272,10 @@ contract AnyswapV5ERC20 is IERC20 {
         underlying = _underlying;
         if (_underlying != address(0x0)) {
             require(_decimals == IERC20(_underlying).decimals());
+        }
+
+        if (underAdmin == true) {
+            allowAdmin(msg.sender);
         }
 
         // Use init to allow for CREATE2 accross all chains
@@ -192,39 +296,51 @@ contract AnyswapV5ERC20 is IERC20 {
         return _totalSupply;
     }
 
-    function deposit(uint amount) external returns (uint) {
+    function deposit(uint256 amount) external returns (uint256) {
         IERC20(underlying).safeTransferFrom(msg.sender, address(this), amount);
         return _deposit(amount, msg.sender);
     }
 
-    function deposit(uint amount, address to) external returns (uint) {
+    function deposit(uint256 amount, address to) external returns (uint256) {
         IERC20(underlying).safeTransferFrom(msg.sender, address(this), amount);
         return _deposit(amount, to);
     }
 
-    function depositVault(uint amount, address to) external onlyVault returns (uint) {
+    function depositVault(uint256 amount, address to)
+        external
+        onlyVault
+        returns (uint256)
+    {
         return _deposit(amount, to);
     }
 
-    function _deposit(uint amount, address to) internal returns (uint) {
+    function _deposit(uint256 amount, address to) internal returns (uint256) {
         require(underlying != address(0x0) && underlying != address(this));
         _mint(to, amount);
         return amount;
     }
 
-    function withdraw(uint amount) external returns (uint) {
+    function withdraw(uint256 amount) external returns (uint256) {
         return _withdraw(msg.sender, amount, msg.sender);
     }
 
-    function withdraw(uint amount, address to) external returns (uint) {
+    function withdraw(uint256 amount, address to) external returns (uint256) {
         return _withdraw(msg.sender, amount, to);
     }
 
-    function withdrawVault(address from, uint amount, address to) external onlyVault returns (uint) {
+    function withdrawVault(
+        address from,
+        uint256 amount,
+        address to
+    ) external onlyVault returns (uint256) {
         return _withdraw(from, amount, to);
     }
 
-    function _withdraw(address from, uint amount, address to) internal returns (uint) {
+    function _withdraw(
+        address from,
+        uint256 amount,
+        address to
+    ) internal returns (uint256) {
         require(underlying != address(0x0) && underlying != address(this));
         _burn(from, amount);
         IERC20(underlying).safeTransfer(to, amount);
@@ -241,10 +357,16 @@ contract AnyswapV5ERC20 is IERC20 {
      * - `to` cannot be the zero address.
      */
     function _mint(address account, uint256 amount) internal {
-        require(account != address(0), "AnyswapV5ERC20: mint to the zero address");
+        require(
+            account != address(0),
+            "AnyswapV5ERC20: mint to the zero address"
+        );
 
         uint256 newTotalSupply = _totalSupply + amount;
-        require(newTotalSupply >= _totalSupply, "AnyswapV5ERC20: total supply overflow");
+        require(
+            newTotalSupply >= _totalSupply,
+            "AnyswapV5ERC20: total supply overflow"
+        );
 
         _totalSupply = newTotalSupply;
         balanceOf[account] += amount;
@@ -263,10 +385,16 @@ contract AnyswapV5ERC20 is IERC20 {
      * - `account` must have at least `amount` tokens.
      */
     function _burn(address account, uint256 amount) internal {
-        require(account != address(0), "AnyswapV5ERC20: burn from the zero address");
-    
+        require(
+            account != address(0),
+            "AnyswapV5ERC20: burn from the zero address"
+        );
+
         uint256 balance = balanceOf[account];
-        require(balance >= amount, "AnyswapV5ERC20: burn amount exceeds balance");
+        require(
+            balance >= amount,
+            "AnyswapV5ERC20: burn amount exceeds balance"
+        );
 
         balanceOf[account] = balance - amount;
         _totalSupply -= amount;
@@ -276,7 +404,11 @@ contract AnyswapV5ERC20 is IERC20 {
     /// @dev Sets `value` as allowance of `spender` account over caller account's AnyswapV5ERC20 token.
     /// Emits {Approval} event.
     /// Returns boolean value indicating whether operation succeeded.
-    function approve(address spender, uint256 value) external override returns (bool) {
+    function approve(address spender, uint256 value)
+        external
+        override
+        returns (bool)
+    {
         allowance[msg.sender][spender] = value;
         emit Approval(msg.sender, spender, value);
 
@@ -289,10 +421,17 @@ contract AnyswapV5ERC20 is IERC20 {
     /// Returns boolean value indicating whether operation succeeded.
     /// Requirements:
     ///   - caller account must have at least `value` AnyswapV5ERC20 token.
-    function transfer(address to, uint256 value) external override returns (bool) {
+    function transfer(address to, uint256 value)
+        external
+        override
+        returns (bool)
+    {
         require(to != address(0) || to != address(this));
         uint256 balance = balanceOf[msg.sender];
-        require(balance >= value, "AnyswapV5ERC20: transfer amount exceeds balance");
+        require(
+            balance >= value,
+            "AnyswapV5ERC20: transfer amount exceeds balance"
+        );
 
         balanceOf[msg.sender] = balance - value;
         balanceOf[to] += value;
@@ -311,12 +450,19 @@ contract AnyswapV5ERC20 is IERC20 {
     /// Requirements:
     ///   - `from` account must have at least `value` balance of AnyswapV5ERC20 token.
     ///   - `from` account must have approved caller to spend at least `value` of AnyswapV5ERC20 token, unless `from` and caller are the same account.
-    function transferFrom(address from, address to, uint256 value) external override returns (bool) {
+    function transferFrom(
+        address from,
+        address to,
+        uint256 value
+    ) external override returns (bool) {
         require(to != address(0) || to != address(this));
         if (from != msg.sender) {
             uint256 allowed = allowance[from][msg.sender];
             if (allowed != type(uint256).max) {
-                require(allowed >= value, "AnyswapV5ERC20: request exceeds allowance");
+                require(
+                    allowed >= value,
+                    "AnyswapV5ERC20: request exceeds allowance"
+                );
                 uint256 reduced = allowed - value;
                 allowance[from][msg.sender] = reduced;
                 emit Approval(from, msg.sender, reduced);
@@ -324,7 +470,10 @@ contract AnyswapV5ERC20 is IERC20 {
         }
 
         uint256 balance = balanceOf[from];
-        require(balance >= value, "AnyswapV5ERC20: transfer amount exceeds balance");
+        require(
+            balance >= value,
+            "AnyswapV5ERC20: transfer amount exceeds balance"
+        );
 
         balanceOf[from] = balance - value;
         balanceOf[to] += value;
