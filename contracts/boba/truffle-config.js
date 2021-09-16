@@ -10,18 +10,12 @@ pwd = pwd.trim();
 var myveryimportantprivatekey = new Web3().eth.accounts.decrypt(key, pwd).privateKey;
 
 module.exports = {
-  contracts_build_directory: './build-ovm',
   networks: {
-    boba: {
+    bobatest: {
       provider: function () {
-        return new HDWalletProvider({
-          privateKey: { myveryimportantprivatekey },
-          providerOrUrl: 'http://127.0.0.1:8545'
-        })
+        return new HDWalletProvider([myveryimportantprivatekey], 'https://rinkeby.boba.network');
       },
       network_id: 28,
-      host: '127.0.0.1',
-      port: 8545,
       gasPrice: 15000000,
     }
   },
@@ -32,7 +26,7 @@ module.exports = {
       settings: {
         optimizer: {
           enabled: true,
-          runs: 1
+          runs: 200
         },
       }
     }

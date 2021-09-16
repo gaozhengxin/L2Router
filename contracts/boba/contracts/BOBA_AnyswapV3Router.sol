@@ -2,21 +2,8 @@
 
 pragma solidity 0.7.6;
 
-// a library for performing overflow-safe math, courtesy of DappHub (https://github.com/dapphub/ds-math)
-
-library SafeMathSushiswap {
-    function add(uint256 x, uint256 y) internal pure returns (uint256 z) {
-        require((z = x + y) >= x, "ds-math-add-overflow");
-    }
-
-    function sub(uint256 x, uint256 y) internal pure returns (uint256 z) {
-        require((z = x - y) <= x, "ds-math-sub-underflow");
-    }
-
-    function mul(uint256 x, uint256 y) internal pure returns (uint256 z) {
-        require(y == 0 || (z = x * y) / y == x, "ds-math-mul-overflow");
-    }
-}
+import "./BOBA_LibTransferHelper.sol";
+import "./BOBA_LibSafeMathSushiswap.sol";
 
 interface AnyswapV1ERC20 {
     function mint(address to, uint256 amount) external returns (bool);
@@ -316,62 +303,13 @@ interface ISushiswapV2Proxy {
         external
         view
         returns (uint256[] memory amounts);
+
+    function swap(
+        uint256[] memory amounts,
+        address[] memory path,
+        address _to
+    ) external;
 }
-
-// helper methods for interacting with ERC20 tokens and sending NATIVE that do not consistently return true/false
-library TransferHelper {
-    function safeApprove(
-        address token,
-        address to,
-        uint256 value
-    ) internal {
-        // bytes4(keccak256(bytes('approve(address,uint256)')));
-        (bool success, bytes memory data) = token.call(
-            abi.encodeWithSelector(0x095ea7b3, to, value)
-        );
-        require(
-            success && (data.length == 0 || abi.decode(data, (bool))),
-            "TransferHelper: APPROVE_FAILED"
-        );
-    }
-
-    function safeTransfer(
-        address token,
-        address to,
-        uint256 value
-    ) internal {
-        // bytes4(keccak256(bytes('transfer(address,uint256)')));
-        (bool success, bytes memory data) = token.call(
-            abi.encodeWithSelector(0xa9059cbb, to, value)
-        );
-        require(
-            success && (data.length == 0 || abi.decode(data, (bool))),
-            "TransferHelper: TRANSFER_FAILED"
-        );
-    }
-
-    function safeTransferFrom(
-        address token,
-        address from,
-        address to,
-        uint256 value
-    ) internal {
-        // bytes4(keccak256(bytes('transferFrom(address,address,uint256)')));
-        (bool success, bytes memory data) = token.call(
-            abi.encodeWithSelector(0x23b872dd, from, to, value)
-        );
-        require(
-            success && (data.length == 0 || abi.decode(data, (bool))),
-            "TransferHelper: TRANSFER_FROM_FAILED"
-        );
-    }
-
-    function safeTransferNative(address to, uint256 value) internal {
-        (bool success, ) = to.call{value: value}(new bytes(0));
-        require(success, "TransferHelper: NATIVE_TRANSFER_FAILED");
-    }
-}
-
 
 interface IwNATIVE {
     function deposit() external payable;
@@ -489,9 +427,8 @@ contract AnyswapV3Router is MPCManagable {
         assert(msg.sender == wNATIVE); // only accept Native via fallback from the wNative contract
     }
 
-    constructor(
+    /*constructor(
         address _mpc,
-        address _wNATIVE,
         address _sushiproxy
     ) {
         allowAdmin(msg.sender);
@@ -501,6 +438,9 @@ contract AnyswapV3Router is MPCManagable {
         if (_sushiproxy != address(0)) {
             setSushiProxy(_sushiproxy);
         }
+    }*/
+    constructor() {
+        allowAdmin(msg.sender);
     }
 
     function setSushiProxy(address _sushiproxy) public onlyMPC returns (bool) {
@@ -664,6 +604,7 @@ contract AnyswapV3Router is MPCManagable {
         _anySwapOut(from, token, to, amount, toChainID);
     }
 
+    /*
     function anySwapOut(
         address[] calldata tokens,
         address[] calldata to,
@@ -680,6 +621,7 @@ contract AnyswapV3Router is MPCManagable {
             );
         }
     }
+    */
 
     // swaps `amount` `token` in `fromChainID` to `to` on this chainID
     function _anySwapIn(
@@ -778,6 +720,7 @@ contract AnyswapV3Router is MPCManagable {
         AnyswapV1ERC20(token).withdrawVault(_mpc, amount, _mpc);
     }
 
+    /*
     function anySwapIn(
         bytes32[] calldata txs,
         address[] calldata tokens,
@@ -789,6 +732,7 @@ contract AnyswapV3Router is MPCManagable {
             _anySwapIn(txs[i], tokens[i], to[i], amounts[i], fromChainIDs[i]);
         }
     }
+    */
 
     // sets up a cross-chain trade from this chain to `toChainID` for `path` trades to `to`
     function anySwapOutExactTokensForTokens(
@@ -1124,22 +1068,6 @@ contract AnyswapV3Router is MPCManagable {
         address[] memory path,
         address _to
     ) internal virtual {
-        for (uint256 i; i < path.length - 1; i++) {
-            (address input, address output) = (path[i], path[i + 1]);
-            (address token0, ) = ISushiswapV2Proxy(sushiProxy).sortTokens(
-                input,
-                output
-            );
-            uint256 amountOut = amounts[i + 1];
-            (uint256 amount0Out, uint256 amount1Out) = input == token0
-                ? (uint256(0), amountOut)
-                : (amountOut, uint256(0));
-            address to = i < path.length - 2
-                ? ISushiswapV2Proxy(sushiProxy).pairFor(output, path[i + 2])
-                : _to;
-            ISushiswapV2Pair(
-                ISushiswapV2Proxy(sushiProxy).pairFor(input, output)
-            ).swap(amount0Out, amount1Out, to, new bytes(0));
-        }
+        ISushiswapV2Proxy(sushiProxy).swap(amounts, path, _to);
     }
 }

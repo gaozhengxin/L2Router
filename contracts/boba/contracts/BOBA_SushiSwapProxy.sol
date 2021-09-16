@@ -370,4 +370,29 @@ contract SushiswapV2Proxy {
     {
         return SushiswapV2Library.getAmountsIn(factory(), amountOut, path);
     }
+
+    // requires the initial amount to have already been sent to the first pair
+    function swap(
+        uint256[] memory amounts,
+        address[] memory path,
+        address _to
+    ) public virtual {
+        for (uint256 i; i < path.length - 1; i++) {
+            (address input, address output) = (path[i], path[i + 1]);
+            (address token0, ) = sortTokens(
+                input,
+                output
+            );
+            uint256 amountOut = amounts[i + 1];
+            (uint256 amount0Out, uint256 amount1Out) = input == token0
+                ? (uint256(0), amountOut)
+                : (amountOut, uint256(0));
+            address to = i < path.length - 2
+                ? pairFor(output, path[i + 2])
+                : _to;
+            ISushiswapV2Pair(
+                pairFor(input, output)
+            ).swap(amount0Out, amount1Out, to, new bytes(0));
+        }
+    }
 }
